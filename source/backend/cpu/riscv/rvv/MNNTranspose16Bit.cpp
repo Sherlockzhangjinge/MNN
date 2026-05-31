@@ -1,6 +1,6 @@
 #include <riscv_vector.h>
 
-void MNNTranspose16Bit(int16_t* dstO, const int16_t* srcO, int16_t* dim) {
+void MNNTranspose16Bit(int16_t* dstO, const int16_t* srcO, int32_t* dim) {
     int w = dim[0];
     int h = dim[1];
     int srcStride = dim[2];

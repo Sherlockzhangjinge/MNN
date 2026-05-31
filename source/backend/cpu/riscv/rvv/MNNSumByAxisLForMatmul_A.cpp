@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <algorithm>
 #include "../../compute/CommonOptFunction.h"
-
+#include "../../compute/Int8FunctionsOpt.h"
 void MNNSumByAxisLForMatmul_A_RVV(float* dest, int8_t* source, const float* scale, ssize_t realDstCount,
                                   SumByAxisParams sumParams) {
     int8_t* srcInt8 = source;

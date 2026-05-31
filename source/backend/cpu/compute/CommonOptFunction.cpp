@@ -52,12 +52,14 @@ extern void MNNSumByAxisLForMatmul_A_RVV(float* dest, int8_t* source, const floa
                                          ssize_t realDstCount, SumByAxisParams sumParams);
 extern void MNNSumWeightInt8_RVV(float* kernelsum, int8_t* source, size_t outside, size_t reduceAxis, size_t hP,
                                  size_t lP);
-extern void MNN1BitCopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
-extern void MNN1BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
-extern void MNN2BitcopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
-extern void MNN2BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
-extern void MNN4BitcopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
-extern void MNN4BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+
+void MNN1BitCopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+void MNN1BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+void MNN2BitcopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+void MNN2BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds) ;
+void MNN4BitcopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+void MNN4BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+
 #endif
 
 #ifndef MNN_USE_SSE

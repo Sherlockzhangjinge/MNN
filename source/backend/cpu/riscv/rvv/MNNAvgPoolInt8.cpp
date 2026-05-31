@@ -8,9 +8,10 @@
 #include <riscv_vector.h>
 #include <stdint.h>
 #include <limits.h>
-
+#include "../../compute/Int8FunctionsOpt.h"
 void MNNAvgPoolInt8_RVV(int8_t* dst, int8_t* src, size_t outputWidth, size_t inputWidth, size_t kernelx, size_t kernely,
-                        size_t stridesx, ssize_t paddingx, ssize_t factor) {
+
+                        size_t stridesx, ssize_t paddingx, ssize_t factor){	
     const size_t vl = __riscv_vsetvl_e8m1(16);
     const size_t pack = 16;
 

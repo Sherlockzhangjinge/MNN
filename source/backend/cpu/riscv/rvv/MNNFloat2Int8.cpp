@@ -7,9 +7,9 @@
 //
 #include <riscv_vector.h>
 #include <stdint.h>
-
+#include "../../compute/Int8FunctionsOpt.h"
 void MNNFloat2Int8_RVV(const float* src, int8_t* dst, size_t sizeQuad, const float* scalep, ssize_t minValue,
-                       ssize_t maxValue, const float* zeroPoint, ssize_t quanParamVec) {
+                   ssize_t maxValue, const float* zeroPoint, ssize_t quanParamVec) {
     float scale[4] = {scalep[0], scalep[0], scalep[0], scalep[0]};
     float zero[4] = {zeroPoint[0], zeroPoint[0], zeroPoint[0], zeroPoint[0]};
 

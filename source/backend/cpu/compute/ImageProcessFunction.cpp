@@ -45,9 +45,11 @@ void MNNRGBAToBGRAFast(const unsigned char* source, unsigned char* dest, size_t 
 void MNNRGBAToBGRFast(const unsigned char* source, unsigned char* dest, size_t count);
 }
 
-#ifndef MNN_USE_RVV
+#ifdef MNN_USE_RVV
 extern void MNNC3ToFloatC3_RVV(const unsigned char* source, float* dest, const float* mean, const float* normal, size_t count);
 extern void MNNC3ToFloatRGBA_RVV(const unsigned char *source, float *dest, const float *mean, const float *normal, size_t count);
+#endif
+#ifndef MNN_USE_RVV
 void MNNGRAYToC4(const unsigned char* source, unsigned char* dest, size_t count) {
     int sta = 0;
 #ifdef MNN_USE_NEON
