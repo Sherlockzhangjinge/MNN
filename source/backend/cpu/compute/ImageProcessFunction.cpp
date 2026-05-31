@@ -12,7 +12,9 @@
 #ifdef MNN_USE_NEON
 #include <arm_neon.h>
 #endif
-
+#ifdef MNN_USE_RVV
+#include <riscv_vector.h>
+#endif
 extern "C" {
 void MNNNV21ToRGBUnit(const unsigned char* source, unsigned char* dest, size_t countDiv8, const unsigned char* uv);
 void MNNNV21ToBGRUnit(const unsigned char* source, unsigned char* dest, size_t countDiv8, const unsigned char* uv);
@@ -44,6 +46,8 @@ void MNNRGBAToBGRFast(const unsigned char* source, unsigned char* dest, size_t c
 }
 
 #ifndef MNN_USE_RVV
+extern void MNNC3ToFloatC3_RVV(const unsigned char* source, float* dest, const float* mean, const float* normal, size_t count);
+extern void MNNC3ToFloatRGBA_RVV(const unsigned char *source, float *dest, const float *mean, const float *normal, size_t count);
 void MNNGRAYToC4(const unsigned char* source, unsigned char* dest, size_t count) {
     int sta = 0;
 #ifdef MNN_USE_NEON
@@ -692,6 +696,9 @@ void MNNC3ToFloatC3(const unsigned char* source, float* dest, const float* mean,
         dest[3 * i + 1] = normal[1] * (source[3 * i + 1] - mean[1]);
         dest[3 * i + 2] = normal[2] * (source[3 * i + 2] - mean[2]);
     }
+#elif defined(MNN_USE_RVV)
+    MNNC3ToFloatC3_RVV(source, dest, mean, normal, count);
+    return;
 #else
     for (int i = 0; i < count; ++i) {
         dest[3 * i + 0] = normal[0] * (source[3 * i + 0] - mean[0]);
@@ -725,6 +732,9 @@ void MNNC1ToFloatRGBA(const unsigned char* source, float* dest, const float* mea
 void MNNC3ToFloatRGBA(const unsigned char* source, float* dest, const float* mean, const float* normal, size_t count) {
 #ifdef MNN_USE_NEON
     MNNBlitC3ToFloatRGBA(source, dest, mean, normal, count);
+#elif defined(MNN_USE_RVV)
+    MNNC3ToFloatRGBA_RVV(source, dest, mean, normal, count);
+    return;
 #else
     for (int i = 0; i < count; ++i) {
         dest[4 * i + 0] = normal[0] * (source[3 * i + 0] - mean[0]);

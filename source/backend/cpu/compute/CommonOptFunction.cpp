@@ -52,6 +52,12 @@ extern void MNNSumByAxisLForMatmul_A_RVV(float* dest, int8_t* source, const floa
                                          ssize_t realDstCount, SumByAxisParams sumParams);
 extern void MNNSumWeightInt8_RVV(float* kernelsum, int8_t* source, size_t outside, size_t reduceAxis, size_t hP,
                                  size_t lP);
+extern void MNN1BitCopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+extern void MNN1BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+extern void MNN2BitcopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+extern void MNN2BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+extern void MNN4BitcopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
+extern void MNN4BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
 #endif
 
 #ifndef MNN_USE_SSE
@@ -4965,6 +4971,12 @@ void MNNCoreFunctionInit() {
         gCoreFunction->MNNSumByAxisLForMatmul_A = MNNSumByAxisLForMatmul_A_RVV;
         gCoreFunction->MNNReorderWeightInt4 = MNNReorderWeightInt4_RVV;
         gCoreFunction->MNNSumWeightInt8 = MNNSumWeightInt8_RVV;
+        gCoreFunction->MNN4BitcopyWithStride = MNN4BitcopyWithStride_RVV;
+        gCoreFunction->MNN1BitcopyWithStride = MNN1BitcopyWithStride_RVV;
+        gCoreFunction->MNN2BitcopyWithStride = MNN2BitcopyWithStride_RVV;
+        gCoreFunction->MNN4BitcopyFast = MNN4BitcopyFast_RVV;
+        gCoreFunction->MNN2BitcopyFast = MNN2BitcopyFast_RVV;
+        gCoreFunction->MNN1BitcopyFast = MNN1BitCopyFast_RVV;
 #ifdef MNN_CPU_WEIGHT_DEQUANT_GEMM
         gCoreFunction->MNNPackedMatMul_int8 = MNNPackedMatMul_int8_RVV;
         gCoreFunction->MNNPackedMatMulRemain_int8 = MNNPackedMatMulRemain_int8_RVV;
