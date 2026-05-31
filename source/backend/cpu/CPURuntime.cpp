@@ -1522,6 +1522,15 @@ static void _getRISCVInfoAux(MNNCPUInfo* cpuinfo) {
     uint32_t vlenb = _safe_read_vlenb();
     cpuinfo->rvv_vlen = (int)(vlenb * 8);
 
+    const int fp32Lanes = cpuinfo->rvv_vlen / 32;
+    if (fp32Lanes >= 16) {
+        cpuinfo->channel_pack = 16;
+    } else if (fp32Lanes >= 8) {
+        cpuinfo->channel_pack = 8;
+    } else {
+        cpuinfo->channel_pack = 4;
+    }
+
     // RVV 版本
 #if defined(__riscv_v)
     cpuinfo->rvv_version = __riscv_v;

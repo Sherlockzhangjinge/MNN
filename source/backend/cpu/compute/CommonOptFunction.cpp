@@ -53,6 +53,19 @@ extern void MNNSumByAxisLForMatmul_A_RVV(float* dest, int8_t* source, const floa
 extern void MNNSumWeightInt8_RVV(float* kernelsum, int8_t* source, size_t outside, size_t reduceAxis, size_t hP,
                                  size_t lP);
 
+extern void MNNPackC8_RVV(float* dst, const float* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNUnpackC8_RVV(float* dst, const float* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNPackC8Int8_RVV(int8_t* dst, const int8_t* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNUnpackC8Int8_RVV(int8_t* dst, const int8_t* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNPackC8Int16_RVV(int16_t* dst, const int16_t* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNUnpackC8Int16_RVV(int16_t* dst, const int16_t* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNPackTransposeC8_RVV(float* dst, const float* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNUnpackTransposeC8_RVV(float* dst, const float* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNPackTransposeC8Int8_RVV(int8_t* dst, const int8_t* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNUnpackTransposeC8Int8_RVV(int8_t* dst, const int8_t* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNPackTransposeC8Int16_RVV(int16_t* dst, const int16_t* src, size_t area, size_t depth, int* areaOffset);
+extern void MNNUnpackTransposeC8Int16_RVV(int16_t* dst, const int16_t* src, size_t area, size_t depth, int* areaOffset);
+
 void MNN1BitCopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
 void MNN1BitcopyWithStride_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
 void MNN2BitcopyFast_RVV(uint8_t* dstO, const uint8_t* srcO, int size, int stride, int ds);
@@ -4979,6 +4992,23 @@ void MNNCoreFunctionInit() {
         gCoreFunction->MNN4BitcopyFast = MNN4BitcopyFast_RVV;
         gCoreFunction->MNN2BitcopyFast = MNN2BitcopyFast_RVV;
         gCoreFunction->MNN1BitcopyFast = MNN1BitCopyFast_RVV;
+
+        const int rvvPack = gCPUInfo.channel_pack >= 8 ? 8 : 4;
+        gCoreFunction->pack = rvvPack;
+        if (rvvPack == 8) {
+            gCoreFunction->MNNPackCUnit = MNNPackC8_RVV;
+            gCoreFunction->MNNUnpackCUnit = MNNUnpackC8_RVV;
+            gCoreFunction->MNNPackCUnitTranspose = MNNUnpackTransposeC8_RVV;
+            gCoreFunction->MNNUnpackCUnitTranspose = MNNPackTransposeC8_RVV;
+            gCoreFunction->MNNPackCUnitInt8 = MNNPackC8Int8_RVV;
+            gCoreFunction->MNNUnpackCUnitInt8 = MNNUnpackC8Int8_RVV;
+            gCoreFunction->MNNPackCUnitTransposeInt8 = MNNUnpackTransposeC8Int8_RVV;
+            gCoreFunction->MNNUnpackCUnitTransposeInt8 = MNNPackTransposeC8Int8_RVV;
+            gCoreFunction->MNNPackCUnitInt16 = MNNPackC8Int16_RVV;
+            gCoreFunction->MNNUnpackCUnitInt16 = MNNUnpackC8Int16_RVV;
+            gCoreFunction->MNNPackCUnitTransposeInt16 = MNNUnpackTransposeC8Int16_RVV;
+            gCoreFunction->MNNUnpackCUnitTransposeInt16 = MNNPackTransposeC8Int16_RVV;
+        }
 #ifdef MNN_CPU_WEIGHT_DEQUANT_GEMM
         gCoreFunction->MNNPackedMatMul_int8 = MNNPackedMatMul_int8_RVV;
         gCoreFunction->MNNPackedMatMulRemain_int8 = MNNPackedMatMulRemain_int8_RVV;

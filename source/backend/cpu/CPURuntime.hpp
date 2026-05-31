@@ -29,7 +29,7 @@ struct MNNCPUInfo {
     int rvv_version = 0;
     bool zvfh = false;
     bool zvkn = false;
-
+    int channel_pack = 4;
     int cpuNumber = 0;
     int smeCoreNumber = 0;
 };
