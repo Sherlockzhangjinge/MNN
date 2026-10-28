@@ -12,6 +12,7 @@
 #include "backend/cpu/CPUConvolution.hpp"
 #include "Int8FunctionsOpt.h"
 #include "CommonOptFunction.h"
+#include "MNNRVVPlanResolver.hpp"
 
 namespace MNN {
 typedef void (*weightSummerFuncion)(float* kernelsum, int8_t* source, size_t outside, size_t reduceAxis, size_t hP, size_t lP);
@@ -117,6 +118,7 @@ protected:
     // for 4Bit Ptq model
     bool m4BitPtq = false;
     bool mMixedKernel = false;
+    bool mUseAccumH = false;
     MatmulRelatedFunctions mRelatedFunctions;
     MatmulRelatedFunctions mArm82Functions;
 };

@@ -68,6 +68,8 @@ public:
         std::shared_ptr<Tensor> mOriginBias;      // PTQ's   and  DynamicQ's bias
         std::shared_ptr<Tensor> mOriginScale;     // PTQ's scale + bias, DynamicQ's alpha + zero;
         std::shared_ptr<Tensor> mWeightKernelSum; // PTQ's   and  DynamicQ's weight kernel sum;
+        std::shared_ptr<Tensor> mWeightAccumHByPlan[9];
+        bool mAccumHPlanBuilt[9] = {};
         std::vector<float> mReluThreshold;
         // relu or relu6
         bool mRelu;

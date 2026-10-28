@@ -2475,6 +2475,49 @@ extern void MNNGemmInt8AddBiasScale_16x4_Unit_RVV(int8_t* dst, const int8_t* src
                                                   size_t src_depth_quad, size_t dst_step, size_t dst_depth_quad,
                                                   const QuanPostTreatParameters* post, size_t realCount);
 
+// M3' E-f: RVV W4A8 (int4-weight x int8-act) GEMM. Mirrors the W8 kernel's MAC+requant, swapping the
+// weight load for 32-bytes/sz int4 nibble unpack (see MNNGemmInt8AddBiasScale_16x4_w4_Unit_RVV.cpp).
+extern void MNNGemmInt8AddBiasScale_16x4_w4_Unit_RVV(int8_t* dst, const int8_t* src, const int8_t* weight,
+                                                     size_t src_depth_quad, size_t dst_step, size_t dst_depth_quad,
+                                                     const QuanPostTreatParameters* post, size_t realCount);
+
+// M3' Plan B: accum-over-H int8 GEMM + its weight repack + microarch planner (see MNNGemmInt8AccumOverH_RVV.cpp).
+extern "C" void MNNGemmInt8AddBiasScale_16x4_AccumH_RVV(int8_t* dst, const int8_t* src, const int8_t* weight,
+                                                        size_t src_depth_quad, size_t dst_step, size_t dst_depth_quad,
+                                                        const QuanPostTreatParameters* post, size_t realCount);
+extern "C" void MNNReorderWeightAccumH_RVV(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                           int oc, int ocUp4, int blockNum, int blockL);
+extern "C" size_t MNNReorderWeightAccumH_Size_RVV(int oc, int ocUp4, int blockNum, int blockL);
+extern "C" void MNNReorderWeightAccumH_Plan_RVV(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                                 int oc, int ocUp4, int blockNum, int blockL, int planId);
+extern "C" size_t MNNReorderWeightAccumH_Size_Plan_RVV(int oc, int ocUp4, int blockNum, int blockL, int planId);
+// M3' E-f: W4A8 accum-over-H (int4 weight, deinterleave) + its int4 tiled reorder.
+extern "C" void MNNGemmInt8AddBiasScale_16x4_AccumH_W4_RVV(int8_t* dst, const int8_t* src, const int8_t* weight,
+                                                           size_t src_depth_quad, size_t dst_step, size_t dst_depth_quad,
+                                                           const QuanPostTreatParameters* post, size_t realCount);
+extern "C" void MNNReorderWeightAccumH_W4_RVV(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                              int oc, int ocUp4, int blockNum, int blockL);
+extern "C" size_t MNNReorderWeightAccumH_W4_Size_RVV(int oc, int ocUp4, int blockNum, int blockL);
+extern "C" void MNNReorderWeightAccumH_W4_Plan_RVV(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                                    int oc, int ocUp4, int blockNum, int blockL, int planId);
+extern "C" size_t MNNReorderWeightAccumH_W4_Size_Plan_RVV(int oc, int ocUp4, int blockNum, int blockL, int planId);
+extern "C" bool MNNRVVUseAccumOverH();
+extern "C" bool MNNRVVUseAccumOverH_W4();   // W4 accum wins e2e on SpacemiT only (NOT C920) -- see impl.
+// M3' §五#1: accum-over-H STRIDED impl variant (h-innermost [bk][d][H]) for the pruning-safety grid + its reorder.
+// Selected by MNN_RVV_ACCUM_IMPL=strided (else tiled). Kept as a calibration candidate to measure tiled>strided.
+extern "C" void MNNGemmInt8AddBiasScale_16x4_AccumH_Strided_RVV(int8_t* dst, const int8_t* src, const int8_t* weight,
+                                                                size_t src_depth_quad, size_t dst_step, size_t dst_depth_quad,
+                                                                const QuanPostTreatParameters* post, size_t realCount);
+extern "C" void MNNReorderWeightAccumH_Strided_RVV(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                                   int oc, int ocUp4, int blockNum, int blockL);
+extern "C" size_t MNNReorderWeightAccumH_Strided_Size_RVV(int oc, int ocUp4, int blockNum, int blockL);
+extern "C" void MNNReorderWeightAccumH_Strided_Plan_RVV(int8_t* dst, const int8_t* packedWeight,
+                                                          const float* weightKernelSum, int oc, int ocUp4,
+                                                          int blockNum, int blockL, int planId);
+extern "C" size_t MNNReorderWeightAccumH_Strided_Size_Plan_RVV(int oc, int ocUp4, int blockNum, int blockL, int planId);
+extern "C" bool MNNRVVAccumImplStrided();
+
+
 extern void MNNAvgPoolInt8_RVV(int8_t* dst, int8_t* src, size_t outputWidth, size_t inputWidth, size_t kernelx,
                                size_t kernely, size_t stridesx, ssize_t paddingx, ssize_t factor);
 
@@ -2839,6 +2882,9 @@ void MNNCoreInt8FunctionInit() {
             _ArmBasicMNNPackC4ForMatMul_A<GEMM_INT8_DST_XUNIT_RVV, GEMM_INT8_SRC_UNIT, GEMM_INT8_UNIT>;
         core->int8MatmulRelatedFunctions.eP = GEMM_INT8_DST_XUNIT_RVV;
         gCoreFunc->Int8GemmKernel = MNNGemmInt8AddBiasScale_16x4_Unit_RVV;
+        if (getenv("MNN_RVV_FORCE_SCALAR_W4") == nullptr) {
+            gCoreFunc->Int8GemmKernel_W4 = MNNGemmInt8AddBiasScale_16x4_w4_Unit_RVV;
+        }
         MNNRvvInitializeInt8FastPathFunctions(gCoreFunc);
         gCoreFunc->MNNAvgPoolInt8 = MNNAvgPoolInt8_RVV;
         gCoreFunc->MNNFloat2Int8 = MNNFloat2Int8_RVV;
@@ -2871,6 +2917,25 @@ void MNNCoreInt8FunctionInit() {
 
         core->int8MatmulRelatedFunctions.MNNSumByAxisLForMatmul_A = core->MNNSumByAxisLForMatmul_A;
     }
+#if defined(__riscv) && defined(MNN_USE_RVV)
+    if (core->supportRVV) {
+        core->int8MatmulRelatedFunctions.Int8GemmKernel_AccumH = MNNGemmInt8AddBiasScale_16x4_AccumH_RVV;
+        core->int8MatmulRelatedFunctions.Int8GemmKernel_AccumH_Strided = MNNGemmInt8AddBiasScale_16x4_AccumH_Strided_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH = MNNReorderWeightAccumH_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_Size = MNNReorderWeightAccumH_Size_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_Plan = MNNReorderWeightAccumH_Plan_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_Size_Plan = MNNReorderWeightAccumH_Size_Plan_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_Strided_Plan = MNNReorderWeightAccumH_Strided_Plan_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_Strided_Size_Plan = MNNReorderWeightAccumH_Strided_Size_Plan_RVV;
+#ifdef MNN_LOW_MEMORY
+        core->int8MatmulRelatedFunctions.Int8GemmKernel_AccumH_W4 = MNNGemmInt8AddBiasScale_16x4_AccumH_W4_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_W4 = MNNReorderWeightAccumH_W4_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_W4_Size = MNNReorderWeightAccumH_W4_Size_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_W4_Plan = MNNReorderWeightAccumH_W4_Plan_RVV;
+        core->int8MatmulRelatedFunctions.MNNReorderWeightAccumH_W4_Size_Plan = MNNReorderWeightAccumH_W4_Size_Plan_RVV;
+#endif
+    }
+#endif
     MNNInt8FunctionInit();
 }
 CoreInt8Functions* MNNGetInt8CoreFunctions() {

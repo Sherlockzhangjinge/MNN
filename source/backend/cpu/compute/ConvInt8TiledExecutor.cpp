@@ -2511,6 +2511,75 @@ ErrorCode DenseConvInt8TiledExecutor::onExecute(const std::vector<Tensor*>& inpu
     sumParams.LU = UP_DIV(inputchannel, SRC_UNIT);
     sumParams.inputBlock = (mInputBlockNum > 1) ? 1 : 0;
     std::vector<float> fakeInputScales(DST_XUNIT, 1.f);
+    auto activeGemmKernel = mGemmKernel;
+    mUseAccumH = false;
+    int planId = 0;
+    const bool planContractOk = mResourceInt8->mDynamicQuant && !mOnlineReorderWeightSme && !mMixedKernel &&
+                                 kxky == 1 && dstBytes == 4 &&
+                                 (mResourceInt8->mWeightBits == 4 || mResourceInt8->mWeightBits == 8);
+    bool planCapabilityOk = false;
+    if (mResourceInt8->mWeightBits == 8) {
+        planCapabilityOk = mRelatedFunctions.Int8GemmKernel_AccumH != nullptr &&
+                           mRelatedFunctions.MNNReorderWeightAccumH_Plan != nullptr &&
+                           mRelatedFunctions.MNNReorderWeightAccumH_Size_Plan != nullptr &&
+                           mRelatedFunctions.MNNReorderWeightAccumH_Strided_Plan != nullptr &&
+                           mRelatedFunctions.MNNReorderWeightAccumH_Strided_Size_Plan != nullptr &&
+                           mRelatedFunctions.Int8GemmKernel_AccumH_Strided != nullptr;
+    } else if (mResourceInt8->mWeightBits == 4) {
+        planCapabilityOk = mRelatedFunctions.Int8GemmKernel_AccumH_W4 != nullptr &&
+                           mRelatedFunctions.MNNReorderWeightAccumH_W4_Plan != nullptr &&
+                           mRelatedFunctions.MNNReorderWeightAccumH_W4_Size_Plan != nullptr;
+    }
+    planId = MNNRVVPlanResolve(mResourceInt8->mWeightBits, plane, oc, ic, mBlockNum, blockL,
+                               planContractOk ? 1 : 0, planCapabilityOk ? 1 : 0);
+    const int planSlot = MNNRVVPlanSlot(planId);
+    const char* planFallback = "none";
+    if (MNNRVVPlanIsAccum(planId) && planSlot > 0 && planContractOk && planCapabilityOk) {
+        decltype(mRelatedFunctions.Int8GemmKernel_AccumH) accumKernel = nullptr;
+        decltype(mRelatedFunctions.MNNReorderWeightAccumH_Plan) accumReorder = nullptr;
+        decltype(mRelatedFunctions.MNNReorderWeightAccumH_Size_Plan) accumReorderSize = nullptr;
+        if (mResourceInt8->mWeightBits == 8) {
+            accumKernel = MNNRVVPlanIsStrided(planId) ? mRelatedFunctions.Int8GemmKernel_AccumH_Strided
+                                                      : mRelatedFunctions.Int8GemmKernel_AccumH;
+            accumReorder = MNNRVVPlanIsStrided(planId) ? mRelatedFunctions.MNNReorderWeightAccumH_Strided_Plan
+                                                        : mRelatedFunctions.MNNReorderWeightAccumH_Plan;
+            accumReorderSize = MNNRVVPlanIsStrided(planId)
+                                   ? mRelatedFunctions.MNNReorderWeightAccumH_Strided_Size_Plan
+                                   : mRelatedFunctions.MNNReorderWeightAccumH_Size_Plan;
+        } else {
+            accumKernel = mRelatedFunctions.Int8GemmKernel_AccumH_W4;
+            accumReorder = mRelatedFunctions.MNNReorderWeightAccumH_W4_Plan;
+            accumReorderSize = mRelatedFunctions.MNNReorderWeightAccumH_W4_Size_Plan;
+        }
+        if (accumKernel != nullptr && accumReorder != nullptr && accumReorderSize != nullptr) {
+            if (!mResourceInt8->mAccumHPlanBuilt[planSlot]) {
+                const size_t totalBytes = accumReorderSize(oc, ocUp4, mBlockNum, blockL, planId);
+                mResourceInt8->mWeightAccumHByPlan[planSlot].reset(Tensor::createDevice<uint8_t>({(int)totalBytes}));
+                if (backend()->onAcquireBuffer(mResourceInt8->mWeightAccumHByPlan[planSlot].get(), Backend::STATIC)) {
+                    const float* wksForRepack = (mInputBlockNum == mBlockNum && mResourceInt8->mWeightKernelSum)
+                                                    ? mResourceInt8->mWeightKernelSum->host<float>()
+                                                    : nullptr;
+                    accumReorder(mResourceInt8->mWeightAccumHByPlan[planSlot]->host<int8_t>(),
+                                 mResourceInt8->mWeightInt8->host<int8_t>(), wksForRepack, oc, ocUp4, mBlockNum,
+                                 blockL, planId);
+                    mResourceInt8->mAccumHPlanBuilt[planSlot] = true;
+                } else {
+                    planFallback = "resource:accum_weight_buffer_acquire_failed";
+                }
+            }
+            if (mResourceInt8->mAccumHPlanBuilt[planSlot]) {
+                mUseAccumH = true;
+                weightDataPtr = mResourceInt8->mWeightAccumHByPlan[planSlot]->host<int8_t>();
+                activeGemmKernel = accumKernel;
+            }
+        } else {
+            planFallback = "capability:plan_function_missing";
+        }
+    } else if (MNNRVVPlanIsAccum(planId)) {
+        planFallback = !planContractOk ? "contract:op_signature" : "capability:plan_function_missing";
+    }
+    MNNRVVPlanInstalled(planId, (mUseAccumH || !MNNRVVPlanIsAccum(planId)) ? 1 : 0,
+                       mUseAccumH ? "none" : planFallback);
 
     auto tileSplitFunction = [&](int tId, int eStartIndex, int eEndIndex, int estep) {
         if (mResourceInt8->mWeightQuantInfoMode && !_compactFpEnvironment()) {
@@ -2676,8 +2745,9 @@ ErrorCode DenseConvInt8TiledExecutor::onExecute(const std::vector<Tensor*>& inpu
                     quanParam.accumBuffer = accumbuff;
                 }
                 quanParam.srcKernelSum = ptrX;
-                mGemmKernel(outputInTilePtr, im2colDst, weightPtrTid, blockL, dstZStep * dstBytes, ocDivThread,
-                            &quanParam, step);
+                quanParam.accumHOcStart = 0; // token-split produces the whole H
+                activeGemmKernel(outputInTilePtr, im2colDst, weightPtrTid, blockL, dstZStep * dstBytes, ocDivThread,
+                                 &quanParam, step);
                 ptrX += (step * mBlockNum);
                 realDstCount -= step;
                 outputInTilePtr += DST_XUNIT * PackUnit * dstBytes;
@@ -2831,7 +2901,7 @@ ErrorCode DenseConvInt8TiledExecutor::onExecute(const std::vector<Tensor*>& inpu
             if (mMixedKernel) {
                 gemmInt8 = (tId < mSmeCores && !forceNeonKernel) ? mGemmKernels[0] : mGemmKernels[1];
             } else {
-                gemmInt8 = mGemmKernel;
+                gemmInt8 = mUseAccumH ? activeGemmKernel : mGemmKernel;
             }
             auto im2colDstThread = im2colDst;
             float* ptrY = nullptr;
@@ -2900,8 +2970,10 @@ ErrorCode DenseConvInt8TiledExecutor::onExecute(const std::vector<Tensor*>& inpu
             quanParam.weightQuantInfoMode = activeQuantInfoMode;
             const int activeQuantInfoBytes = activeQuantInfoMode ? (int)sizeof(int16_t) : (int)sizeof(float);
             auto weightPtrTid =
-                weightSrc + static_cast<int32_t>(ocIndex * mBlockNum * blockL * SRC_UNIT * weightBytes +
-                                                 ocIndex * 2 * mBlockNum * activeQuantInfoBytes);
+                mUseAccumH ? weightDataPtr
+                           : weightSrc + static_cast<int32_t>(ocIndex * mBlockNum * blockL * SRC_UNIT * weightBytes +
+                                                              ocIndex * 2 * mBlockNum * activeQuantInfoBytes);
+            quanParam.accumHOcStart = mUseAccumH ? ocIndex : 0;
 
             int realDstCount = plane;
             auto ptrX = xKernelSumPtr;

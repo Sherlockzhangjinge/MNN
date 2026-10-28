@@ -74,6 +74,7 @@ struct QuanPostTreatParameters {
     float* accumBuffer = nullptr;
     int32_t* indices = nullptr;
     int32_t weightQuantInfoMode = 0; // 0: FP32 scale/offset; 1: FP16 scale/source bias.
+    int32_t accumHOcStart = 0;
 };
 #if defined(__aarch64__)
 // 112 = 14 preceding 8-byte slots, hardcoded as [x6, #112] by the FP16 W4/W8 GEMM asm in

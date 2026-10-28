@@ -317,6 +317,35 @@ struct MatmulRelatedFunctions {
                               size_t realDstCount) = nullptr;
     void (*MNNSumByAxisLForMatmul_A)(float* dest, int8_t* source, const float* dequantScale, ssize_t realDstCount,
                                      SumByAxisParams sumParams) = nullptr;
+    // M3' Plan B (RVV accum-over-H). Non-null only on RVV cores where the planner selects accum.
+    void (*Int8GemmKernel_AccumH)(int8_t* dst, const int8_t* src, const int8_t* weight, size_t src_depth_quad,
+                                  size_t dst_step, size_t dst_depth_quad, const QuanPostTreatParameters* post,
+                                  size_t realCount) = nullptr;
+    void (*Int8GemmKernel_AccumH_Strided)(int8_t* dst, const int8_t* src, const int8_t* weight,
+                                          size_t src_depth_quad, size_t dst_step, size_t dst_depth_quad,
+                                          const QuanPostTreatParameters* post, size_t realCount) = nullptr;
+    void (*MNNReorderWeightAccumH)(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum, int oc,
+                                   int ocUp4, int blockNum, int blockL) = nullptr;
+    size_t (*MNNReorderWeightAccumH_Size)(int oc, int ocUp4, int blockNum, int blockL) = nullptr;
+    void (*MNNReorderWeightAccumH_Plan)(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                        int oc, int ocUp4, int blockNum, int blockL, int planId) = nullptr;
+    size_t (*MNNReorderWeightAccumH_Size_Plan)(int oc, int ocUp4, int blockNum, int blockL, int planId) = nullptr;
+    void (*MNNReorderWeightAccumH_Strided_Plan)(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                        int oc, int ocUp4, int blockNum, int blockL, int planId) = nullptr;
+    size_t (*MNNReorderWeightAccumH_Strided_Size_Plan)(int oc, int ocUp4, int blockNum, int blockL, int planId) = nullptr;
+    // M3' E-f: W4A8 accum-over-H (int4 weight, deinterleave). Non-null only on RVV + accum + LOW_MEMORY.
+    void (*Int8GemmKernel_AccumH_W4)(int8_t* dst, const int8_t* src, const int8_t* weight, size_t src_depth_quad,
+                                     size_t dst_step, size_t dst_depth_quad, const QuanPostTreatParameters* post,
+                                     size_t realCount) = nullptr;
+    void (*Int8GemmKernel_AccumH_W4_Strided)(int8_t* dst, const int8_t* src, const int8_t* weight,
+                                             size_t src_depth_quad, size_t dst_step, size_t dst_depth_quad,
+                                             const QuanPostTreatParameters* post, size_t realCount) = nullptr;
+    void (*MNNReorderWeightAccumH_W4)(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum, int oc,
+                                      int ocUp4, int blockNum, int blockL) = nullptr;
+    size_t (*MNNReorderWeightAccumH_W4_Size)(int oc, int ocUp4, int blockNum, int blockL) = nullptr;
+    void (*MNNReorderWeightAccumH_W4_Plan)(int8_t* dst, const int8_t* packedWeight, const float* weightKernelSum,
+                                           int oc, int ocUp4, int blockNum, int blockL, int planId) = nullptr;
+    size_t (*MNNReorderWeightAccumH_W4_Size_Plan)(int oc, int ocUp4, int blockNum, int blockL, int planId) = nullptr;
 
     int eP;
 };
